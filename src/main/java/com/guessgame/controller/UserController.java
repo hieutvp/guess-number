@@ -24,7 +24,7 @@ public class UserController {
         return Map.of(
                 "email", user.getEmail(),
                 "score", user.getScore(),
-                "turns", user.getTurns()
+                "turnsLeft", user.getTurns()
         );
     }
 }
