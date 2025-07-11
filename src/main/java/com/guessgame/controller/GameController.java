@@ -1,18 +1,19 @@
 package com.guessgame.controller;
 
+import com.guessgame.dto.GuessRequest;
 import com.guessgame.dto.UserLeaderboardDTO;
 import com.guessgame.entity.User;
+import com.guessgame.exception.GuessNumberException;
 import com.guessgame.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api")
@@ -31,27 +32,35 @@ public class GameController {
     private static final double WIN_PROBABILITY = 0.05; // Xác suất thắng của người chơi
 
     /**
-     * Người dùng đoán số do máy chủ chọn.
+     * Xử lý dự đoán số của người dùng.
      *
      * @param userDetails Thông tin người dùng đã đăng nhập.
-     * @param number      Số mà người dùng đoán.
-     * @return Map<String, Object>
-     * Thông báo kết quả đoán, số do máy chủ chọn, điểm số và lượt chơi còn lại.
+     * @param request     Chứa số dự đoán của người dùng.
+     * @return ResponseEntity chứa thông báo kết quả dự đoán, số máy chủ đã chọn, điểm số và lượt chơi còn lại.
+     * Nếu số dự đoán không hợp lệ (không nằm trong khoảng từ 1 đến 5) hoặc người dùng không còn lượt chơi, ném ra GuessNumberException.
+     * @throws GuessNumberException nếu số dự đoán không hợp lệ hoặc người dùng không còn lượt chơi.
+     *                              * @Transactional để đảm bảo tính nhất quán trong việc cập nhật lượt chơi và điểm số của người dùng.
      */
     @Transactional
     @PostMapping("/guess")
-    public Map<String, Object> guess(@AuthenticationPrincipal UserDetails userDetails,
-                                     @RequestParam int number) {
+    public ResponseEntity<?> guess(@AuthenticationPrincipal UserDetails userDetails,
+                                   @RequestBody GuessRequest request) {
         User currentUser = findUserByUserDetailsWithLock(userDetails);
         int turnsLeft = currentUser.getTurns();
         if (turnsLeft <= 0) {
-            return Map.of("message", "Bạn không còn lượt chơi nào!");
+            throw new GuessNumberException("Bạn không còn lượt chơi nào! Vui lòng mua thêm lượt chơi.");
+        }
+
+        int number = request.getNumber();
+        if (number < 1 || number > 5) {
+            throw new GuessNumberException("Số dự đoán phải nằm trong khoảng từ 1 đến 5!");
         }
 
         currentUser.setTurns(currentUser.getTurns() - 1);
 
-        // Áp dụng xác suất thắng của người chơi là 5%
+        // Máy chủ chọn một số ngẫu nhiên từ 1 đến MAX_SERVER_NUMBER
         int serverNumber = random.nextInt(MAX_SERVER_NUMBER) + 1;
+        // Người chơi thắng nếu số dự đoán trùng với số máy chủ hoặc theo xác suất thắng
         boolean isUserWin = random.nextDouble() < WIN_PROBABILITY || number == serverNumber;
         if (isUserWin) {
             currentUser.setScore(currentUser.getScore() + POINTS_PER_WIN);
@@ -62,12 +71,13 @@ public class GameController {
                 ? String.format("Chúc mừng! Bạn đã đoán đúng số: %d, bạn được cộng %d điểm.", serverNumber, POINTS_PER_WIN)
                 : String.format("Rất tiếc! Bạn đã đoán sai số: %d, số đúng là %d", number, serverNumber);
 
-        return Map.of(
-                "message", message,
-                "serverNumber", serverNumber,
-                "score", currentUser.getScore(),
-                "turns", currentUser.getTurns()
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", message);
+        response.put("serverNumber", serverNumber);
+        response.put("score", currentUser.getScore());
+        response.put("turns", currentUser.getTurns());
+
+        return ResponseEntity.ok(response);
     }
 
     /**

@@ -1,10 +1,13 @@
 package com.guessgame.security;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import jakarta.annotation.PostConstruct;
-import lombok.Value;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+
 import io.jsonwebtoken.security.Keys;
 
 import java.util.Date;
@@ -22,12 +25,14 @@ public class JwtUtil {
 
     @PostConstruct
     public void init() {
-        // Initialize the secret key and expiration time
-        secretKey = Keys.hmacShaKeyFor(secretKey.getBytes());
+        if (secretKey == null || secretKey.length() < 32) {
+            throw new IllegalArgumentException("JWT secret key must be at least 32 characters long.");
+        }
+
+        key = Keys.hmacShaKeyFor(secretKey.getBytes());
     }
 
     public String generateToken(String username) {
-        // Generate JWT token using the secret key and expiration time
         return Jwts.builder()
                 .setSubject(username)
                 .setIssuedAt(new Date())
@@ -36,13 +41,12 @@ public class JwtUtil {
                 .compact();
     }
 
-    public boolean validateToken(String token, String username) {
-        // Validate the JWT token
-        String user = extractUsername(token);
+    public boolean validateToken(String token, String userDetails) {
+        String username = extractUsername(token);
+        return (username.equals(userDetails) && !isTokenExpired(token));
     }
 
     public String extractUsername(String token) {
-        // Extract the username from the JWT token
         return Jwts.parserBuilder()
                 .setSigningKey(key)
                 .build()
@@ -52,7 +56,6 @@ public class JwtUtil {
     }
 
     public boolean isTokenExpired(String token) {
-        // Check if the JWT token is expired
         Date expirationDate = Jwts.parserBuilder()
                 .setSigningKey(key)
                 .build()

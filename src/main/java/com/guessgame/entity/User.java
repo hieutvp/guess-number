@@ -27,7 +27,7 @@ public class User {
 
     private int score = 0;
 
-    private int turnCount = 5;
+    private int turns = 0;
 
     private String role = "USER";
 
