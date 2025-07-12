@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.HttpStatus;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -42,7 +43,8 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
             );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Thông tin đăng nhập không hợp lệ. Vui lòng kiểm tra lại tên người dùng và mật khẩu.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Thông tin đăng nhập không hợp lệ.\nVui lòng kiểm tra lại tên người dùng và mật khẩu."));
         }
 
         Optional<User> optUser = userRepository.findByUsername(loginRequest.getUsername());
@@ -62,8 +64,14 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            return ResponseEntity.badRequest().body("Tên người dùng đã tồn tại. Vui lòng chọn tên khác.");
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Tên người dùng đã tồn tại. Vui lòng chọn tên khác."));
         }
+        if (userRepository.existsByEmail(registerRequest.getEmail())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Email đã được sử dụng. Vui lòng sử dụng email khác."));
+        }
+
         User user = User.builder()
                 .username(registerRequest.getUsername())
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
@@ -71,6 +79,8 @@ public class AuthController {
                 .role("USER") // Role mặc định, có thể thay đổi nếu cần
                 .build();
         userRepository.save(user);
-        return ResponseEntity.ok("Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.");
+        return ResponseEntity.ok(
+                Map.of("message", "Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.")
+        );
     }
 }
